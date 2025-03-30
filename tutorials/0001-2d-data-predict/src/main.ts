@@ -1,5 +1,6 @@
 import * as tf from "@tensorflow/tfjs";
 import * as tfvis from "@tensorflow/tfjs-vis";
+import { Car2DType, CarType, NormalizationType } from "./type.ts";
 
 // tf.setBackend("cpu"); // 또는 'wasm'
 // await tf.ready();
@@ -9,32 +10,6 @@ console.log("tfvis", tfvis);
 await tf.ready();
 console.log(tf.getBackend());
 console.log("Hello TensorFlow");
-
-interface CarType {
-  Name: string;
-  Miles_per_Gallon: number;
-  Cylinders: number;
-  Displacement: number;
-  Horsepower: number;
-  Weight_in_lbs: number;
-  Acceleration: number;
-  Year: string;
-  Origin: string;
-}
-
-interface Car2DType {
-  mpg: number;
-  horsepower: number;
-}
-
-interface NormalizationType {
-  inputs: tf.Tensor<tf.Rank>;
-  labels: tf.Tensor<tf.Rank>;
-  inputMax: tf.Tensor<tf.Rank>;
-  inputMin: tf.Tensor<tf.Rank>;
-  labelMax: tf.Tensor<tf.Rank>;
-  labelMin: tf.Tensor<tf.Rank>;
-}
 
 /**
  * Get the car data reduced to just the variables we are interested
@@ -51,45 +26,9 @@ async function getData() {
       horsepower: car.Horsepower,
     }))
     .filter((car) => car.mpg != null && car.horsepower != null);
-
   // console.log("cleaned : ", cleaned);
   return cleaned;
 }
-
-async function run() {
-  // Load and plot the original input data that we are going to train on.
-  const data = await getData();
-  const values = data.map((d) => ({
-    x: d.horsepower,
-    y: d.mpg,
-  }));
-
-  tfvis.render.scatterplot(
-    { name: "Horsepower v MPG" },
-    { values },
-    {
-      xLabel: "Horsepower",
-      yLabel: "MPG",
-      height: 300,
-    }
-  );
-
-  // More code will be added below
-
-  // Convert the data to a form we can use for training.
-  const tensorData = convertToTensor(data);
-  const { inputs, labels } = tensorData;
-
-  // Train the model
-  await trainModel(model, inputs, labels);
-  console.log("Done Training");
-
-  // Make some predictions using the model and compare them to the
-  // original data
-  testModel(model, data, tensorData);
-}
-
-document.addEventListener("DOMContentLoaded", run);
 
 function createModel() {
   // Create a sequential model
@@ -105,9 +44,6 @@ function createModel() {
 
   return model;
 }
-
-const model = createModel();
-tfvis.show.modelSummary({ name: "Model Summary" }, model);
 
 /**
  * Convert the input data to tensors that we can use for machine
@@ -194,10 +130,8 @@ function testModel(
   // that we did earlier.
   const [xs, preds] = tf.tidy(() => {
     const xs = tf.linspace(0, 1, 100);
-    const preds = model.predict(xs.reshape([100, 1]));
-
+    const preds = model.predict(xs.reshape([100, 1])) as tf.Tensor;
     const unNormXs = xs.mul(inputMax.sub(inputMin)).add(inputMin);
-
     const unNormPreds = preds.mul(labelMax.sub(labelMin)).add(labelMin);
 
     // Un-normalize the data
@@ -226,3 +160,40 @@ function testModel(
     }
   );
 }
+
+async function run() {
+  const model = createModel();
+  tfvis.show.modelSummary({ name: "Model Summary" }, model);
+
+  // Load and plot the original input data that we are going to train on.
+  const data = await getData();
+  const values = data.map((d) => ({
+    x: d.horsepower,
+    y: d.mpg,
+  }));
+
+  tfvis.render.scatterplot(
+    { name: "Horsepower v MPG" },
+    { values },
+    {
+      xLabel: "Horsepower",
+      yLabel: "MPG",
+      height: 300,
+    }
+  );
+  // Convert the data to a form we can use for training.
+  const tensorData = convertToTensor(data);
+  const { inputs, labels } = tensorData;
+
+  // Train the model
+  await trainModel(model, inputs, labels);
+  console.log("Done Training");
+
+  // Make some predictions using the model and compare them to the
+  // original data
+  testModel(model, data, tensorData);
+}
+
+// document.addEventListener("DOMContentLoaded", run);
+
+run();
