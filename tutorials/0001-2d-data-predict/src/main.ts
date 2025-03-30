@@ -1,15 +1,9 @@
-import * as tf from "@tensorflow/tfjs";
-import * as tfvis from "@tensorflow/tfjs-vis";
-import { Car2DType, CarType, NormalizationType } from "./type.ts";
+import * as tf from '@tensorflow/tfjs'
+import * as tfvis from '@tensorflow/tfjs-vis'
+import { Car2DType, CarType, NormalizationType } from './type.ts'
 
-// tf.setBackend("cpu"); // 또는 'wasm'
-// await tf.ready();
-// console.log(tf.getBackend()); // 현재 활성화된 백엔드 확인
-console.log("tf", tf);
-console.log("tfvis", tfvis);
-await tf.ready();
-console.log(tf.getBackend());
-console.log("Hello TensorFlow");
+console.log('tf', tf)
+console.log('tfvis', tfvis)
 
 /**
  * Get the car data reduced to just the variables we are interested
@@ -17,32 +11,32 @@ console.log("Hello TensorFlow");
  */
 async function getData() {
   const carsDataResponse = await fetch(
-    "https://storage.googleapis.com/tfjs-tutorials/carsData.json"
-  );
-  const carsData: CarType[] = await carsDataResponse.json();
+    'https://storage.googleapis.com/tfjs-tutorials/carsData.json'
+  )
+  const carsData: CarType[] = await carsDataResponse.json()
   const cleaned: Car2DType[] = carsData
     .map((car) => ({
       mpg: car.Miles_per_Gallon,
       horsepower: car.Horsepower,
     }))
-    .filter((car) => car.mpg != null && car.horsepower != null);
+    .filter((car) => car.mpg != null && car.horsepower != null)
   // console.log("cleaned : ", cleaned);
-  return cleaned;
+  return cleaned
 }
 
 function createModel() {
   // Create a sequential model
-  const model = tf.sequential();
+  const model = tf.sequential()
 
   // Add a single input layer
-  model.add(tf.layers.dense({ inputShape: [1], units: 1, useBias: true }));
+  model.add(tf.layers.dense({ inputShape: [1], units: 1, useBias: true }))
 
   // Add an output layer
-  model.add(tf.layers.dense({ units: 1, useBias: true }));
+  model.add(tf.layers.dense({ units: 1, useBias: true }))
 
   // model.add(tf.layers.dense({ units: 50, activation: "sigmoid" }));
 
-  return model;
+  return model
 }
 
 /**
@@ -57,27 +51,27 @@ function convertToTensor(data: Car2DType[]) {
 
   return tf.tidy(() => {
     // Step 1. Shuffle the data
-    tf.util.shuffle(data);
+    tf.util.shuffle(data)
 
     // Step 2. Convert data to Tensor
-    const inputs = data.map((d) => d.horsepower);
-    const labels = data.map((d) => d.mpg);
+    const inputs = data.map((d) => d.horsepower)
+    const labels = data.map((d) => d.mpg)
 
-    const inputTensor = tf.tensor2d(inputs, [inputs.length, 1]);
-    const labelTensor = tf.tensor2d(labels, [labels.length, 1]);
+    const inputTensor = tf.tensor2d(inputs, [inputs.length, 1])
+    const labelTensor = tf.tensor2d(labels, [labels.length, 1])
 
     //Step 3. Normalize the data to the range 0 - 1 using min-max scaling
-    const inputMax = inputTensor.max();
-    const inputMin = inputTensor.min();
-    const labelMax = labelTensor.max();
-    const labelMin = labelTensor.min();
+    const inputMax = inputTensor.max()
+    const inputMin = inputTensor.min()
+    const labelMax = labelTensor.max()
+    const labelMin = labelTensor.min()
 
     const normalizedInputs = inputTensor
       .sub(inputMin)
-      .div(inputMax.sub(inputMin));
+      .div(inputMax.sub(inputMin))
     const normalizedLabels = labelTensor
       .sub(labelMin)
-      .div(labelMax.sub(labelMin));
+      .div(labelMax.sub(labelMin))
 
     return {
       inputs: normalizedInputs,
@@ -87,8 +81,8 @@ function convertToTensor(data: Car2DType[]) {
       inputMin,
       labelMax,
       labelMin,
-    };
-  });
+    }
+  })
 }
 
 async function trainModel(
@@ -100,22 +94,22 @@ async function trainModel(
   model.compile({
     optimizer: tf.train.adam(),
     loss: tf.losses.meanSquaredError,
-    metrics: ["mse"],
-  });
+    metrics: ['mse'],
+  })
 
-  const batchSize = 32;
-  const epochs = 50;
+  const batchSize = 32
+  const epochs = 50
 
   return await model.fit(inputs, labels, {
     batchSize,
     epochs,
     shuffle: true,
     callbacks: tfvis.show.fitCallbacks(
-      { name: "Training Performance" },
-      ["loss", "mse"],
-      { height: 200, callbacks: ["onEpochEnd"] }
+      { name: 'Training Performance' },
+      ['loss', 'mse'],
+      { height: 200, callbacks: ['onEpochEnd'] }
     ),
-  });
+  })
 }
 
 function testModel(
@@ -123,77 +117,85 @@ function testModel(
   inputData: Car2DType[],
   normalizationData: NormalizationType
 ) {
-  const { inputMax, inputMin, labelMin, labelMax } = normalizationData;
+  const { inputMax, inputMin, labelMin, labelMax } = normalizationData
 
   // Generate predictions for a uniform range of numbers between 0 and 1;
   // We un-normalize the data by doing the inverse of the min-max scaling
   // that we did earlier.
   const [xs, preds] = tf.tidy(() => {
-    const xs = tf.linspace(0, 1, 100);
-    const preds = model.predict(xs.reshape([100, 1])) as tf.Tensor;
-    const unNormXs = xs.mul(inputMax.sub(inputMin)).add(inputMin);
-    const unNormPreds = preds.mul(labelMax.sub(labelMin)).add(labelMin);
+    const xs = tf.linspace(0, 1, 100)
+    const preds = model.predict(xs.reshape([100, 1])) as tf.Tensor
+    const unNormXs = xs.mul(inputMax.sub(inputMin)).add(inputMin)
+    const unNormPreds = preds.mul(labelMax.sub(labelMin)).add(labelMin)
 
     // Un-normalize the data
-    return [unNormXs.dataSync(), unNormPreds.dataSync()];
-  });
+    return [unNormXs.dataSync(), unNormPreds.dataSync()]
+  })
 
   const predictedPoints = Array.from(xs).map((val, i) => {
-    return { x: val, y: preds[i] };
-  });
+    return { x: val, y: preds[i] }
+  })
 
   const originalPoints = inputData.map((d) => ({
     x: d.horsepower,
     y: d.mpg,
-  }));
+  }))
 
   tfvis.render.scatterplot(
-    { name: "Model Predictions vs Original Data" },
+    { name: 'Model Predictions vs Original Data' },
     {
       values: [originalPoints, predictedPoints],
-      series: ["original", "predicted"],
+      series: ['original', 'predicted'],
     },
     {
-      xLabel: "Horsepower",
-      yLabel: "MPG",
+      xLabel: 'Horsepower',
+      yLabel: 'MPG',
       height: 300,
     }
-  );
+  )
 }
 
 async function run() {
-  const model = createModel();
-  tfvis.show.modelSummary({ name: "Model Summary" }, model);
+  const model = createModel()
+  tfvis.show.modelSummary({ name: 'Model Summary' }, model)
 
   // Load and plot the original input data that we are going to train on.
-  const data = await getData();
+  const data = await getData()
   const values = data.map((d) => ({
     x: d.horsepower,
     y: d.mpg,
-  }));
+  }))
 
   tfvis.render.scatterplot(
-    { name: "Horsepower v MPG" },
+    { name: 'Horsepower v MPG' },
     { values },
     {
-      xLabel: "Horsepower",
-      yLabel: "MPG",
+      xLabel: 'Horsepower',
+      yLabel: 'MPG',
       height: 300,
     }
-  );
+  )
   // Convert the data to a form we can use for training.
-  const tensorData = convertToTensor(data);
-  const { inputs, labels } = tensorData;
+  const tensorData = convertToTensor(data)
+  const { inputs, labels } = tensorData
 
   // Train the model
-  await trainModel(model, inputs, labels);
-  console.log("Done Training");
+  await trainModel(model, inputs, labels)
+  console.log('Done Training')
 
   // Make some predictions using the model and compare them to the
   // original data
-  testModel(model, data, tensorData);
+  testModel(model, data, tensorData)
 }
 
 // document.addEventListener("DOMContentLoaded", run);
+// run();
+// tf.setBackend("cpu"); // 또는 'wasm'
+// await tf.ready();
+// console.log(tf.getBackend()); // 현재 활성화된 백엔드 확인
 
-run();
+tf.ready().then(() => {
+  console.log(tf.getBackend())
+  console.log('Hello TensorFlow')
+  run()
+})
